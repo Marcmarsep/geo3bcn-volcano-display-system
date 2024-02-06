@@ -2,16 +2,16 @@
 
 ## Configuration
 
-To configure the Geo3bcn Volcano system, follow these step edit the congi.json file.
-    -host: "", // The hostname of your flask app.
-    -webHost: "", // The web host URL.
-    -port: "", // The port number your flask app is listening on.
-    -protocol: "", // The protocol used (e.g http for debug or https for deployment).
-    -googleMapsApiKey: '', // Your Google Maps API key.
-    -initCallbackName: 'initApp', // The callback function name for map initialization.
-    -defaultLat: 41.489910, // The default latitude for the map center.
-    -defaultLng: 2.043831 // The default longitude for the map center.
+To configure the Geo3bcn Volcano system, follow these steps by editing the `config.json` file:
 
+- `host`: The hostname of your Flask app.
+- `webHost`: The web host URL.
+- `port`: The port number your Flask app is listening on.
+- `protocol`: The protocol used (e.g., http for debugging or https for deployment).
+- `googleMapsApiKey`: Your Google Maps API key.
+- `initCallbackName`: The callback function name for map initialization.
+- `defaultLat`: The default latitude for the map center.
+- `defaultLng`: The default longitude for the map center.
 
 ## Uploading Your Files
 
