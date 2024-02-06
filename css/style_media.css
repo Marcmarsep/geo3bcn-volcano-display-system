@@ -1,0 +1,18 @@
+@media (max-width: 767px) { /* col-xs */
+	#title-silet{
+		display: none;
+	}
+}
+@media (max-width: 664px) { /* col-xs */
+	.powered-by{
+		color: #ffffff;
+	}
+}
+@media (max-width: 508px) { /* col-xs */
+	.footer-cont{
+		padding: 0;
+	}
+	.powered-by{
+		color: #ffffff;
+	}
+}

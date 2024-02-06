@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: uIManager.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: uIManager.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>import MapManager from "./mapManager.js";
+import VolcanoAPIManager from './VolcanoAPIManager.js';
+
+/**
+ * UIManager manages the user interface interactions, data presentation, and response to user events.
+ *
+ * Responsibilities of UIManager include:
+ * - Initializing and updating the map view.
+ * - Handling user inputs and triggering appropriate actions.
+ * - Managing the display of data such as volcanoes, maps, and event trees.
+ */
+class UIManager {
+    /**
+     * Tracks the currently active entity (e.g., a selected map or active volcano).
+     * The value is 'undefined' when there's no active entity.
+     */
+    active = undefined;
+
+    /**
+     * Constructs an instance of UIManager.
+     *
+     * This constructor initializes the UI manager with necessary configurations and dependencies.
+     * It sets up the API managers for handling volcano data and map visualizations and defines
+     * the protocol, host, web host, and port for network requests.
+     *
+     * @param {Object} config - Configuration object containing necessary parameters.
+     */
+    constructor(config) {
+        // Initialize the VolcanoAPIManager with the provided configuration.
+        // This manager handles all interactions with the Volcano API.
+        this.volcanoAPIManager = new VolcanoAPIManager(config);
+
+        // Cache the jQuery selection for the filter container.
+        // This container will be used to display the list of volcanoes.
+        this.filterContainer = $("div.filter-cont");
+
+        // Initialize the MapManager with the provided configuration.
+        // This manager handles all map-related functionalities, including rendering and interactions.
+        this.mapManager = new MapManager(config);
+
+        // Store network-related configurations.
+        // These configurations will be used for constructing network request URLs.
+        this.protocol = config.protocol;  // The protocol (http or https) used for network requests.
+        this.host = config.host;         // The host name of the server.
+        this.webHost = config.webHost;   // The web host name for accessing web resources.
+        this.port = config.port;         // The port on which the server is running.
+    }
+
+    /**
+     * Loads the mapping API.
+     *
+     * This function delegates the task of loading the map API to the MapManager.
+     * It should be called when the application is initialized or when you need to
+     * ensure that the map API is loaded before performing any map-related operations.
+     */
+    loadAPI() {
+        // Delegate the API loading process to the MapManager.
+        this.mapManager.loadAPI();
+    }
+
+    /**
+     * Initializes the map.
+     *
+     * This function delegates the initialization of the map to the MapManager.
+     * It's responsible for setting up the map with the correct configurations and
+     * ensuring that it's ready for user interactions and other operations.
+     */
+    initializeMap() {
+        // Delegate the map initialization process to the MapManager.
+        this.mapManager.initializeMap();
+    }
+
+    /**
+     * Removes an element from the DOM.
+     *
+     * This function takes an element ID as input, finds the corresponding DOM element,
+     * and removes it from the DOM. It ensures that the element exists and has a parent
+     * before attempting to remove it.
+     *
+     * @param {string} elemId - The ID of the element to remove from the DOM.
+     */
+    removeElement(elemId) {
+        if (typeof elemId !== 'string' || elemId.trim() === '') {
+            console.error("Invalid element ID.");
+            return;
+        }
+        // Retrieve the element from the DOM based on the provided elemId.
+        const elem = document.getElementById(elemId);
+
+        // Check if the element exists and has a parent node.
+        if (elem &amp;&amp; elem.parentNode) {
+            // If the element exists and has a parent node, remove the element from the DOM.
+            elem.parentNode.removeChild(elem);
+        }
+    }
+
+    /**
+     * Creates an image element with the specified source, alt text, and title.
+     *
+     * This function generates an HTML image element (&lt;img>) with the provided
+     * source URL, alt text, and title. It ensures that the alt and title attributes
+     * are set only if they are provided, maintaining clean HTML and avoiding
+     * unnecessary attributes.
+     *
+     * @param {string} src - The source URL of the image.
+     * @param {string} [alt] - The alt text of the image. Optional.
+     * @param {string} [title] - The title of the image. Optional.
+     * @returns {HTMLImageElement} The created image element.
+     */
+    createImage(src, alt, title) {
+        // Create a new image element
+        const img = document.createElement('img');
+
+        // Set the source of the image
+        img.src = src;
+
+        // Set the alt text of the image if provided
+        if (alt !== null &amp;&amp; alt !== undefined) {
+            img.alt = alt;
+        }
+
+        // Set the title of the image if provided
+        if (title !== null &amp;&amp; title !== undefined) {
+            img.title = title;
+        }
+
+        // Return the created image element
+        return img;
+    }
+
+    /**
+     * Clears the volcano list.
+     *
+     * This function is responsible for emptying the volcano list container,
+     * ensuring that the UI is clean and ready for a new set of volcanoes to be displayed.
+     * It should be called whenever you need to refresh or update the list of volcanoes.
+     */
+    clearVolcanoList() {
+        // Use jQuery to empty the filter container, removing all child elements.
+        // This effectively clears the list of volcanoes from the UI.
+        if (this.filterContainer) {
+            this.filterContainer.empty();
+        } else {
+            console.warn("Filter container not initialized.");
+        }
+    }
+
+    /**
+     * Adds a volcano to the list.
+     *
+     * This function creates a new list item element representing a volcano and appends it to the filter container.
+     * Each list item is clickable and triggers the `handleVolcanoClick` function when clicked.
+     *
+     * @param {Object} volcano - The volcano object containing necessary properties like `nwsname` and `name`.
+     */
+    addVolcanoToList(volcano) {
+        if (!volcano || !volcano.nwsname || !volcano.name) {
+            console.error("Invalid volcano object.");
+            return;
+        }
+        // Create a new list item for the volcano
+        const listItem = $(`&lt;li id='${volcano.nwsname}' class='locationbut' href='#'>&lt;/li>`)
+            .text(volcano.name) // Set the text of the list item to the name of the volcano
+            .click(() => this.handleVolcanoClick(volcano.nwsname)); // Attach a click event listener
+
+        // Append the newly created list item to the filter container
+        this.filterContainer.append(listItem);
+    }
+
+    /**
+     * Activates a volcano in the list.
+     *
+     * This function marks a volcano as active by applying the 'active' class to the corresponding list item.
+     * It ensures that any previously active volcano is deactivated by removing the 'active' class.
+     *
+     * @param {string} volcanoName - The name of the volcano to be activated.
+     */
+    activateVolcano(volcanoName) {
+        if (typeof volcanoName !== 'string' || volcanoName.trim() === '') {
+            console.error("Invalid volcano name.");
+            return;
+        }
+        // Deactivate the previously active volcano, if any
+        if (this.active !== undefined) {
+            const prevActive = document.getElementById(this.active);
+            if (prevActive) { // Ensure the element exists before trying to manipulate it
+                prevActive.classList.remove("active");
+            }
+        }
+
+        // Activate the newly selected volcano
+        this.active = volcanoName;
+        const currentActive = document.getElementById(this.active);
+        if (currentActive) { // Ensure the element exists before trying to manipulate it
+            currentActive.classList.add("active");
+        } else {
+            console.error(`Element with ID ${this.active} not found.`);
+        }
+    }
+
+    /**
+     * Clears the metadata list.
+     *
+     * This function removes all child elements from the metadata list container,
+     * effectively clearing the list. It ensures that the UI is clean and ready
+     * for new metadata items to be displayed.
+     */
+    clearMetadataList() {
+        // Retrieve the metadata list container from the DOM.
+        const ul = document.getElementById("metadata-list");
+
+        // Check if the metadata list container exists.
+        if (!ul) {
+            console.error("Metadata list container not found.");
+            return;
+        }
+
+        // Remove all child elements from the metadata list container.
+        while (ul.firstChild) {
+            ul.removeChild(ul.firstChild);
+        }
+
+        // Ensure that the correct class is applied to the metadata list container.
+        ul.className = "list-unstyled";
+
+        // Re-assign the ID to the metadata list container.
+        // Note: This might not be necessary if the ID is not changing.
+        ul.id = "metadata-list";
+    }
+
+    /**
+     * Adds a metadata item to the metadata list.
+     *
+     * This function creates a new list item element representing a metadata entry
+     * and appends it to the metadata list container. It supports special handling
+     * for 'Authors' and 'Product reference' by making them clickable links.
+     *
+     * @param {string} key - The key or title of the metadata entry.
+     * @param {string} value - The value or description of the metadata entry.
+     * @param {number} i - The index of the item, used for styling purposes (e.g., alternating colors).
+     */
+    addMetadataItem(key, value, i) {
+        // Retrieve the metadata list container from the DOM.
+        const ul = document.getElementById("metadata-list");
+
+        // Check if the metadata list container exists.
+        if (!ul) {
+            console.error("Metadata list container not found.");
+            return;
+        }
+
+        // Create the list item and its child elements.
+        const li = document.createElement("li");
+        const strong = document.createElement("strong");
+        const a = document.createElement("a");
+
+        // Add text content and classes.
+        a.textContent = value;
+        a.classList.add("meta-text");
+        strong.textContent = `${key}: `;
+
+        // Append the elements to form the structure: &lt;li>&lt;strong>key:&lt;/strong> &lt;a>value&lt;/a>&lt;/li>
+        li.appendChild(strong);
+        li.appendChild(a);
+
+        // Special handling for certain keys like 'Authors' and 'Product reference'.
+        if (key === "Authors") {
+            a.href = "https://gvbcsic.wordpress.com/";
+            a.target = "_blank";
+            a.classList.add("meta-text-link");
+        } else if (key === "Product reference") {
+            a.href = `https://dx.doi.org/${value}`;
+            a.target = "_blank";
+            a.classList.add("meta-text-link");
+        }
+
+        // Add alternating background colors for list items.
+        li.classList.add(i % 2 === 0 ? "text-grey" : "text-grey2");
+
+        // Append the list item to the metadata list container.
+        ul.appendChild(li);
+    }
+
+    /**
+     * Sets the map legend and download links for a given map.
+     *
+     * This function updates the legend container with a map legend image and sets up download links
+     * for downloading the entire volcano data and the specific map data.
+     *
+     * @param {string} filename - The filename of the volcano.
+     * @param {string} map - The specific map name for which the legend and downloads are set.
+     */
+    setMapLegendAndDownloadLinks(filename, map) {
+        // Construct the URL for the legend image.
+        const urlLegend = `${this.protocol}${this.webHost}/volcanoes/${filename}/imgs/legend_${map}.png`;
+
+        // Retrieve the container for the legend.
+        const divLegend = document.getElementById("container-ley");
+
+        // Check if the legend container exists.
+        if (!divLegend) {
+            console.error("Legend container not found.");
+            return;
+        }
+
+        // Create elements for the legend image and download links.
+        const rowLeyenda = document.createElement('div');
+        rowLeyenda.id = "row-leyenda";
+        rowLeyenda.classList.add("row");
+
+        const colDiv = document.createElement('div');
+        colDiv.classList.add("col-md-2", "col-md-offset-5");
+
+        const divLegendImg = document.createElement('div');
+        divLegendImg.style.position = "absolute";
+        divLegendImg.id = "div-legend";
+        divLegendImg.classList.add("div-legend");
+
+        const legendImg = document.createElement('img');
+        legendImg.classList.add("leyenda");
+        legendImg.src = urlLegend;
+
+        // Append elements to construct the structure.
+        divLegendImg.appendChild(legendImg);
+        colDiv.appendChild(divLegendImg);
+        rowLeyenda.appendChild(colDiv);
+        divLegend.appendChild(rowLeyenda);
+
+        // Set the visibility and href attributes for the download buttons.
+        const downloadButtonDiv = document.getElementById("down-but-div");
+        const downloadButton = document.getElementById("down-but");
+        const downloadButton2 = document.getElementById("down-but-2");
+
+        if (downloadButtonDiv &amp;&amp; downloadButton &amp;&amp; downloadButton2) {
+            downloadButtonDiv.style.visibility = "visible";
+            downloadButton.href = `${this.protocol}${this.webHost}volcanoes/${filename}/downloads/all.zip`;
+            downloadButton2.href = `${this.protocol}${this.webHost}volcanoes/${filename}/downloads/${map}.zip`;
+        } else {
+            console.error("Download buttons or container not found.");
+        }
+    }
+
+    /**
+     * Sets the map metadata, map legend, and download links.
+     *
+     * This function clears any existing metadata and then populates the metadata list
+     * with the provided data. It also sets the map legend image and download links
+     * for the specified map and filename.
+     *
+     * @param {Object} data - The metadata for the map.
+     * @param {string} filename - The filename of the volcano.
+     * @param {string} map - The specific map name for which the metadata is set.
+     */
+    setMapMetadata(data, filename, map) {
+        // Clear any existing metadata from the list.
+        this.clearMetadataList();
+
+        // Check if data is a valid object
+        if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+            console.error('Invalid data for metadata. Expected an object.');
+            return;
+        }
+
+        // Populate the metadata list with the provided data.
+        Object.keys(data).forEach((key, i) => {
+            this.addMetadataItem(key, data[key], i);
+        });
+
+        // Set the map legend image and download links.
+        this.setMapLegendAndDownloadLinks(filename, map);
+    }
+
+    /**
+     * Displays a preview of a volcano.
+     *
+     * This function updates the UI to show a preview of a selected volcano. It displays the
+     * volcano's position, updates the volcano name in the UI, and loads a preview image.
+     *
+     * @param {string} volcanoName - The name of the volcano to display.
+     * @param {string} latitude - The latitude of the volcano.
+     * @param {string} longitude - The longitude of the volcano.
+     */
+    displayVolcanoPreview(volcanoName, latitude, longitude) {
+        // Display the position of the volcano.
+        const pos = latitude + ":" + longitude;
+        $("#ubicacio").append(pos);
+
+        // Update the volcano name in the UI.
+        const svNameElement = document.getElementById("sv-name");
+        if (svNameElement) {
+            svNameElement.innerHTML = document.getElementById(volcanoName)?.innerHTML || "";
+        } else {
+            console.error("Element with ID 'sv-name' not found.");
+        }
+
+        // Retrieve the image container.
+        const imgContainer = document.getElementById("img-cont");
+        if (imgContainer) {
+            // Create and configure the image for the volcano preview.
+            const img = this.createImage(
+                `${this.protocol}${this.host}:${this.port}/api/geo3bcn/preview-img/${volcanoName}`,
+                "volcano",
+                "volc"
+            );
+            img.classList.add("volcano-img"); // Use class for styling instead of inline styles.
+            imgContainer.appendChild(img);
+        } else {
+            console.error("Image container not found.");
+        }
+
+        // Show the popup info.
+        $(".pop-info").css('display', 'inline');
+    }
+
+    /**
+     * Displays the event tree for a specified volcano.
+     *
+     * This function updates the UI to show the event tree for the selected volcano.
+     * It calls setEventTreeImage to load and display the image of the event tree
+     * and then ensures that the container for the event tree is visible.
+     *
+     * @param {string} volcanoName - The name of the volcano whose event tree is to be displayed.
+     */
+    displayVolcanoEventTree(volcanoName) {
+        // Load and display the image for the event tree of the specified volcano.
+        this.setEventTreeImage(volcanoName);
+
+        // Ensure the container for the event tree is visible.
+        $(".event-tree-container").css('display', 'inline');
+    }
+
+    /**
+     * Handles the click event on a volcano item.
+     *
+     * This function is called when a volcano is clicked. It primarily delegates
+     * the responsibility of activating the volcano to the setActiveVolcano function.
+     *
+     * @param {string} nWSName - The name of the volcano that was clicked.
+     */
+    handleVolcanoClick(nWSName) {
+        if (typeof nWSName !== 'string' || nWSName.trim() === '') {
+            console.error("Invalid volcano name.");
+            return;
+        }
+        // Activate the clicked volcano.
+        this.setActiveVolcano(nWSName);
+    }
+
+    /**
+     * Retrieves and displays a summary of volcanoes.
+     *
+     * This function fetches a summary of volcanoes using the volcanoAPIManager,
+     * clears any existing volcano list in the UI, and then populates the list
+     * with the received data. Additionally, it adds markers to the map for each volcano.
+     */
+    setVolcanoSummary() {
+        // Fetch volcano summary from the API.
+        this.volcanoAPIManager.getVolcanoSummary(
+            response => {
+                // Clear any existing volcano list items.
+                this.clearVolcanoList();
+
+                // Add each volcano from the response to the volcano list in the UI.
+                response.forEach(volcano => this.addVolcanoToList(volcano));
+
+                // Add map markers for each volcano.
+                this.addMarkers(response);
+            },
+            error => {
+                // Log and handle any errors that occurred during the fetch operation.
+                console.error("Error while fetching volcano summary: ", error);
+                // Consider adding user-friendly error handling here, e.g., displaying a message in the UI.
+            }
+        );
+    }
+
+    /**
+     * Adds markers to the map.
+     *
+     * This function delegates the task of adding markers to the map to the MapManager.
+     * It's a straightforward pass-through method that can be called to add multiple markers
+     * to the map based on the provided markers data.
+     *
+     * @param {Array} markers - An array of marker data to be added to the map.
+     */
+    addMarkers(markers) {
+        if (!Array.isArray(markers)) {
+            console.error("Invalid markers. Expected an array.");
+            return;
+        }
+
+        // Delegate the addition of markers to the mapManager.
+        this.mapManager.addMarkers(markers);
+    }
+
+    /**
+     * Sets the list of maps in the UI.
+     *
+     * This function takes a response object containing map data and the filename of the volcano.
+     * It then constructs a list of maps, making each map clickable. Clicking on a map name
+     * will call the loadMap function with the corresponding map details.
+     *
+     * @param {Object} response - The response object containing map data.
+     * @param {string} filename - The filename associated with the maps.
+     */
+    setMapList(response, filename) {
+        // Retrieve the container where the map list will be displayed.
+        const ul = document.getElementById("buttons");
+        if (!ul) {
+            console.error("Map list container not found.");
+            return;
+        }
+
+        // Clear any existing map list items.
+        while (ul.firstChild) ul.removeChild(ul.firstChild);
+
+        // Create a new list container.
+        const listContainer = document.createElement('ul');
+
+        // Iterate over each map item in the response data.
+        response.data.forEach(mapItem => {
+            // Extract and format the map name.
+            const mapName = mapItem.name.split('_')[0];
+            const formattedMapName = mapName.charAt(0).toUpperCase() + mapName.slice(1);
+
+            // Create a new list item for the map.
+            const listItem = document.createElement('li');
+
+            // Create a link element for the map item.
+            const link = document.createElement('a');
+            link.id = mapItem.name;
+            link.className = "map-but";
+            link.textContent = formattedMapName;
+            link.href = "#";
+
+            // Attach a click event listener to the link.
+            // Clicking the map name will trigger the loadMap function.
+            link.addEventListener('click', (event) => {
+                event.preventDefault(); // Prevent default anchor behavior.
+                this.loadMap(filename, mapItem.name); // Load the selected map.
+            });
+
+            // Append the link to the list item, and the list item to the list container.
+            listItem.appendChild(link);
+            listContainer.appendChild(listItem);
+        });
+
+        // Append the constructed list container to the main container in the DOM.
+        ul.appendChild(listContainer);
+    }
+
+    /**
+     * Resets the metadata display.
+     *
+     * This function clears the metadata list and displays a default message prompting the user
+     * to select a map. If there's an overlay on the map, it removes it using the removeOverlay function.
+     */
+    resetMetadataDisplay() {
+        // Check if the Layer is defined and remove the overlay from the map.
+        if (typeof Layer !== 'undefined') {
+            removeOverlay();
+        }
+
+        // Retrieve the metadata list container from the DOM.
+        const ul = document.getElementById("metadata-list");
+        if (!ul) {
+            console.error("Metadata list container not found.");
+            return;
+        }
+
+        // Clear any existing metadata list items.
+        while (ul.firstChild) {
+            ul.removeChild(ul.firstChild);
+        }
+
+        // Create the default message element.
+        const li = document.createElement("li");
+        const a = document.createElement("a");
+        const strong = document.createElement("strong");
+        const txt = document.createTextNode("Click On Select Map Button To Choose a Map To Display.");
+        strong.appendChild(txt);
+        a.appendChild(strong);
+        li.appendChild(a);
+
+        // Append the default message to the metadata list container.
+        ul.appendChild(li);
+    }
+
+    /**
+     * Sets a volcano as active and updates the UI accordingly.
+     *
+     * This function handles the process of activating a volcano. It fetches available maps for the volcano,
+     * resets the display for the event tree and metadata, updates the UI with the volcano's preview and event tree,
+     * and sets the map layer for the volcano.
+     *
+     * @param {string} volcanoName - The name of the volcano to be activated.
+     * @param {string} [latitude='No specified'] - The latitude of the volcano. Optional.
+     * @param {string} [longitude='No specified'] - The longitude of the volcano. Optional.
+     */
+    setActiveVolcano(volcanoName, latitude = 'No specified', longitude = 'No specified') {
+        // Reset the display for the event tree.
+        this.resetEventTree();
+
+        // Fetch available maps for the specified volcano.
+        this.volcanoAPIManager.getVolcanoAvailableMaps(volcanoName, response => {
+            // Remove any existing volcano and event tree images.
+            this.removeElement("volcano-img");
+            this.removeElement("event-tree-img");
+
+            // Activate the volcano and reset the metadata display.
+            this.activateVolcano(volcanoName);
+            this.resetMetadataDisplay();
+
+            // Set the list of maps, display the volcano preview, and set the KML layer for the map.
+            this.setMapList(response, volcanoName);
+            this.displayVolcanoPreview(volcanoName, latitude, longitude);
+            const kmlPath = `${this.protocol}${this.webHost}/volcanoes/${volcanoName}/kml/preview.kml`;
+            this.mapManager.addKmlLayer(kmlPath);
+
+            // Display the event tree for the volcano.
+            this.displayVolcanoEventTree(volcanoName);
+        });
+    }
+
+    /**
+     * Activates a specific map and updates the UI to reflect the active state.
+     *
+     * This function marks a map as active by applying the 'active' class to the corresponding element.
+     * It also ensures that any previously active map is deactivated by removing the 'active' class.
+     * Additionally, it removes the image of the currently active volcano if it exists.
+     *
+     * @param {string} mapId - The ID of the map to be activated.
+     */
+    activateMap(mapId) {
+        // Deactivate the previously active maps.
+        if (this.mapactive !== "") {
+            const activeMaps = document.getElementsByClassName("active");
+            for (let i = activeMaps.length - 1; i >= 0; i--) {
+                activeMaps[i].classList.remove("active");
+            }
+        }
+
+        // Activate the newly selected map.
+        this.mapactive = mapId;
+        const mapElement = document.getElementById(this.mapactive);
+        if (mapElement) {
+            mapElement.classList.add("active");
+        } else {
+            console.error(`Element with ID '${this.mapactive}' not found.`);
+        }
+
+        // Remove the image of the currently active volcano.
+        this.removeElement("volcano-img");
+    }
+
+    /**
+     * Clears the event tree metadata list.
+     *
+     * This function removes all child elements from the event tree metadata list container,
+     * effectively resetting the list. It ensures that the UI is clean and ready for new
+     * event tree metadata items to be displayed.
+     */
+    clearEventTreeMetadataList() {
+        // Retrieve the event tree metadata list container from the DOM.
+        const ul = document.getElementById("event-tree-metadata-list");
+
+        // Check if the event tree metadata list container exists.
+        if (!ul) {
+            console.error("Event tree metadata list container not found.");
+            return;
+        }
+
+        // Remove all child elements from the event tree metadata list container.
+        while (ul.firstChild) {
+            ul.removeChild(ul.firstChild);
+        }
+
+        // Ensure that the correct class is applied to the event tree metadata list container.
+        ul.className = "list-unstyled";
+
+        // Re-assign the ID to the event tree metadata list container.
+        // Note: This might not be necessary if the ID is not changing.
+        ul.id = "event-tree-metadata-list";
+    }
+
+    /**
+     * Adds an item to the event tree metadata list.
+     *
+     * This function creates a new list item for the event tree metadata and appends it to the list.
+     * If the metadata key is 'Access to map', it treats the value as a URL and creates a clickable link.
+     *
+     * @param {string} key - The key or title of the metadata entry.
+     * @param {string} value - The value or description of the metadata entry, or a URL if the key is 'Access to map'.
+     * @param {number} i - The index of the item, used for alternating row colors.
+     */
+    addEventTreeMetadataItem(key, value, i) {
+        // Retrieve the event tree metadata list container from the DOM.
+        const ul = document.getElementById("event-tree-metadata-list");
+        if (!ul) {
+            console.error("Event tree metadata list container not found.");
+            return;
+        }
+
+        // Create the list item and its child elements.
+        const li = document.createElement("li");
+        const strong = document.createElement("strong");
+        const a = document.createElement("a");
+
+        // Configure the elements and add text content.
+        a.textContent = value;
+        a.classList.add("meta-text");
+        strong.textContent = `${key}: `;
+
+        // Append the elements to form the structure: &lt;li>&lt;strong>key:&lt;/strong> &lt;a>value&lt;/a>&lt;/li>
+        li.appendChild(strong);
+        li.appendChild(a);
+
+        // Special handling for the 'Access to map' key.
+        if (key === "Access to map") {
+            a.href = value;
+            a.target = "_blank";
+            a.classList.add("meta-text-link");
+        }
+
+        // Apply alternating background colors for list items.
+        li.classList.add(i % 2 === 0 ? "et-text-grey" : "et-text-grey2");
+
+        // Append the list item to the event tree metadata list container.
+        ul.appendChild(li);
+    }
+
+    /**
+     * Resets the event tree section.
+     *
+     * This function clears the current content of the event tree container and initializes it
+     * with a default structure, ready to display new event tree data and images.
+     */
+    resetEventTree() {
+        // Retrieve the main container for the event tree.
+        const etcont = document.getElementById("eventtree");
+        if (!etcont) {
+            console.error("Event tree container not found.");
+            return;
+        }
+
+        // Clear any existing content in the event tree container.
+        etcont.innerHTML = '';
+
+        // Create a container for the event tree image.
+        const imgCont = document.createElement('div');
+        imgCont.id = 'event-tree-img-cont';
+
+        // Create a list container for the event tree metadata.
+        const metaList = document.createElement('ul');
+        metaList.id = 'event-tree-metadata-list';
+        metaList.classList.add('list-unstyled', 'list-event-tree-metadata-list');
+
+        // Create a default list item with a label prompting the user to select a map.
+        const defaultItem = document.createElement('li');
+        defaultItem.classList.add('et-text-grey');
+        const label = document.createElement('label');
+        label.classList.add('et-text-grey');
+        label.textContent = 'Select Map To See His Event Tree.';
+        defaultItem.appendChild(label);
+
+        // Append the default list item to the metadata list container.
+        metaList.appendChild(defaultItem);
+
+        // Append the image container and metadata list container to the main event tree container.
+        etcont.appendChild(imgCont);
+        etcont.appendChild(metaList);
+    }
+
+    /**
+     * Sets and displays the event tree image for a specific volcano.
+     *
+     * This function creates an image element for the event tree associated with the specified
+     * volcano. If an existing event tree image is present, it is removed before the new image is added.
+     *
+     * @param {string} filename - The name of the file used to fetch the event tree image.
+     */
+    setEventTreeImage(filename) {
+        // Retrieve the main container for the event tree.
+        const etcont = document.getElementById("eventtree");
+        if (!etcont) {
+            console.error("Event tree container not found.");
+            return;
+        }
+
+        // Remove the existing event tree image if it exists.
+        const existingImg = document.getElementById("event-tree-img");
+        if (existingImg) {
+            etcont.removeChild(existingImg);
+        }
+
+        // Create and configure the new event tree image.
+        const etImg = document.createElement("img");
+        etImg.src = `${this.protocol}${this.host}:${this.port}/api/geo3bcn/event-tree-img/${filename}`;
+        etImg.classList.add("event-tree-img");
+        etImg.id = 'event-tree-img';
+
+        // Append the new event tree image to the main event tree container.
+        etcont.appendChild(etImg);
+    }
+
+    /**
+     * Sets the event tree metadata and displays the corresponding image.
+     *
+     * This function updates the UI with metadata related to the event tree of a specific map.
+     * It clears any existing metadata, iterates over the received data to add each metadata item,
+     * and finally sets the image for the event tree.
+     *
+     * @param {Object} data - The metadata for the event tree.
+     * @param {string} filename - The name of the file used to fetch the event tree image.
+     */
+    setEventTreeMetadata(data, filename) {
+        // Clear any existing event tree metadata items.
+        this.clearEventTreeMetadataList();
+
+        // Add each metadata item to the event tree metadata list.
+        Object.keys(data).forEach((key, i) => {
+            this.addEventTreeMetadataItem(key, data[key], i);
+        });
+
+        // Set the image for the event tree.
+        this.setEventTreeImage(filename);
+    }
+
+    /**
+     * Loads a specific map along with its metadata and KML layer.
+     *
+     * This function activates a map, fetches and sets its metadata and event tree metadata,
+     * and adds the corresponding KML layer to the map. It handles errors that may occur
+     * while fetching the map metadata.
+     *
+     * @param {string} filename - The filename of the volcano to which the map belongs.
+     * @param {string} map - The specific map to be loaded.
+     */
+    loadMap(filename, map) {
+        // Activate the selected map.
+        this.activateMap(map);
+
+        // Fetch and set the map metadata and event tree metadata.
+        this.volcanoAPIManager.getMapMetadata(filename, map, (response) => {
+            this.setMapMetadata(response['map_metadata'], filename, map);
+            this.setEventTreeMetadata(response['event_tree_metadata'], filename);
+        }, (jqXHR, textStatus, errorThrown) => {
+            // Handle errors that occur during the fetch operation.
+            console.error('Error fetching map metadata:', textStatus, errorThrown);
+            // Consider adding user-friendly error handling here, e.g., displaying a message in the UI.
+        });
+
+        // Construct the KML path and add the KML layer to the map.
+        const kmlPath = `${this.protocol}${this.webHost}volcanoes/${filename}/kml/${map}/doc.kml`;
+        this.mapManager.addKmlLayer(kmlPath);
+    }
+
+}
+/**
+ * Export UIManager as the default export of this module.
+ * This makes UIManager available for import in other modules.
+ */
+export default UIManager;</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="MapManager.html">MapManager</a></li><li><a href="UIManager.html">UIManager</a></li><li><a href="VolcanoAPIManager.html">VolcanoAPIManager</a></li></ul><h3>Global</h3><ul><li><a href="global.html#config">config</a></li><li><a href="global.html#initApp">initApp</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 4.0.2</a> on Tue Feb 06 2024 15:40:30 GMT+0100 (hora estándar de Europa central)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
